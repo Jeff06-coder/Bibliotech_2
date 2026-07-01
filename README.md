@@ -1,3 +1,137 @@
+# 📚 Banco de Dados — Sistema de Biblioteca - GustavoTavares
+
+Parte de **Banco de Dados** do projeto. Modelagem relacional em PostgreSQL,
+cobrindo o cadastro de livros, autores e categorias, e o controle de
+empréstimos por usuário.
+
+---
+
+## 1. Arquitetura
+
+- **Tipo:** SQL (relacional)
+- **Provedor:** PostgreSQL 17
+- **Justificativa:** o domínio é fortemente relacional — um empréstimo depende
+  de um livro e de um usuário existirem. O PostgreSQL garante essa integridade
+  com chaves estrangeiras e transações ACID, além de ter ótimo suporte a
+  índices e busca textual.
+
+Detalhes completos em [`justificativa/arquitetura.md`](justificativa/arquitetura.md).
+
+---
+
+## 2. Entidades e Relacionamentos
+
+| Tabela | Descrição |
+|--------|-----------|
+| `usuarios` | Pessoas que fazem empréstimos |
+| `autores` | Autores dos livros |
+| `categorias` | Gêneros/categorias |
+| `livros` | Acervo (cada livro pertence a um autor) |
+| `livro_categorias` | **Tabela pivô** — relação N:N entre livros e categorias |
+| `emprestimos` | Registro de empréstimos |
+
+Relações:
+- `autores` 1:N `livros`
+- `livros` N:N `categorias` (via `livro_categorias`)
+- `usuarios` 1:N `emprestimos`
+- `livros` 1:N `emprestimos`
+
+---
+
+## 3. Estrutura de Pastas
+
+```
+.
+├── README.md
+├── modelagem/
+│   ├── der.png                 # Diagrama Entidade-Relacionamento (conceitual)
+│   ├── modelo_logico.png       # Diagrama lógico (tabelas e tipos)
+│   └── dicionario_dados.md     # Dicionário de dados completo
+├── scripts/
+│   ├── setup.sql               # DDL: cria tabelas, chaves, constraints e índices
+│   └── seed/
+│       └── seed.sql            # Carga inicial (150+ registros)
+├── queries/
+│   ├── crud.sql                # CRUD básico de todas as entidades
+│   ├── consultas_avancadas.sql # Consultas críticas (JOIN, GROUP BY, filtros)
+│   └── agregacoes.sql          # Consultas de agregação
+└── justificativa/
+    └── arquitetura.md          # Escolha do banco + normalização (1FN/2FN/3FN)
+```
+
+---
+
+## 4. Normalização
+
+O banco está na **3ª Forma Normal**:
+
+- **1FN:** todos os campos são atômicos (as categorias de um livro ficam na
+  tabela pivô, não num campo separado por vírgula).
+- **2FN:** todos os campos dependem da chave primária inteira.
+- **3FN:** sem dependências transitivas (o nome do autor fica só em `autores`,
+  acessado por JOIN).
+
+---
+
+## 5. Índices
+
+| Campo | Tipo | Motivo |
+|-------|------|--------|
+| `livros.titulo` | B-Tree | Busca por título (mais comum) |
+| `livros.autor_id` | B-Tree | Acelera JOIN livro → autor |
+| `emprestimos.data_emprestimo` | B-Tree | Relatórios por período |
+| `emprestimos.usuario_id` | B-Tree | Empréstimos de um usuário |
+| `emprestimos.devolvido` | B-Tree | Filtro de atrasados / em aberto |
+
+---
+
+## 6. Dados de Teste
+
+O `seed.sql` insere **mais de 150 registros** coerentes com o domínio:
+20 usuários, 20 autores, 10 categorias, 30 livros, 41 vínculos livro-categoria
+e 30 empréstimos (alguns devolvidos, alguns em atraso, para testar relatórios).
+
+---
+
+## 7. Como Executar
+
+Com o banco rodando via Docker (na raiz do projeto):
+
+```bash
+# Sobe a infraestrutura
+docker compose up -d --build
+
+# Cria as tabelas
+docker compose run --rm cli migrate
+
+# Popula com os dados de teste
+docker compose run --rm cli seed
+```
+
+Consultar os dados:
+
+```bash
+docker compose exec db psql -U biblioteca_user -d biblioteca -c "SELECT * FROM usuarios;"
+```
+
+> Alternativa (SQL puro, para testar a modelagem isolada):
+> ```bash
+> psql -U postgres -d biblioteca -f scripts/setup.sql
+> psql -U postgres -d biblioteca -f scripts/seed/seed.sql
+> ```
+
+---
+
+## 8. Consultas Críticas
+
+Disponíveis em [`queries/consultas_avancadas.sql`](queries/consultas_avancadas.sql):
+
+1. Livros mais emprestados (ranking de popularidade)
+2. Empréstimos atrasados (filtro por data)
+3. Livros por categoria (usa a tabela pivô)
+4. Usuários mais ativos
+5. Empréstimos por mês (relatório temporal)
+
 # API Biblioteca - LuanTavares
 
 API REST para gerenciamento de uma biblioteca (livros, autores, categorias,
